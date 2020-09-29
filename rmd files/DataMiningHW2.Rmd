@@ -1,0 +1,251 @@
+---
+title: "Assignment 2"
+author: "Group 24: Pratik Mante and Jiaqi Wang"
+date: "2/8/2020"
+output: pdf_document
+---
+
+Problem 1: Perform principal component analysis on NHL.xlsx, which contains statistics of 30 teams in the National Hockey League. The description of the variables is provided in the ‘Description’ sheet of the file. Focus only on the variables 12 through 25, and create a new data frame.
+
+```{r}
+library(readxl)
+NHL <- read_excel("~/Downloads/NHL.xlsx")
+NHL1 <- subset(NHL, select = -c(1:11,face))
+NHL1
+```
+
+-Input the new data frame to fa.parallel() function to determine the number of components to extract
+
+```{r}
+library(psych)
+pc <- fa.parallel(NHL1, fa = "both", n.obs = 30)
+```
+
+-Input the new data frame to principal() function to extract the components. If raw data is input, the correlation matrix is automatically calculated by principal() function.
+
+```{r}
+pa <- principal(NHL1, nfactors = 1, rotate = "none", fm="pa")
+pa
+```
+
+-Rotate the components
+
+```{r}
+pa1 <- principal(NHL1, nfactors = 1, rotate = "varimax")
+pa1
+```
+
+-Compute component scores
+
+```{r}
+pa2 <- principal(NHL1, nfactors = 1, rotate = "varimax", cor = "cor", scores = TRUE)
+head(pa2$weights)
+```
+
+-Graph an orthogonal solution using factor.plot()
+
+```{r}
+factor.plot(pa2)
+```
+
+-Interpret the results
+
+In this question one component was extracted which has SS loading of 7.19 and proportion variance of 51% of NHL dataset. Since, here only one component has been rotated, the rotation does not have change in the values.
+
+-------------------------------------------------------------------------------------------------------------------
+
+Problem 2: Perform principal component analysis on Glass Identification Data.xlsx
+
+Input the raw data matrix to fa.parallel() function to determine the number of components to extract
+
+```{r}
+GSD <- read_excel("~/Downloads/Glass Identification Data.xlsx")
+gsdpc <- fa.parallel(GSD, fa = "both", n.obs = 214)
+```
+
+-Input the raw data matrix to principal() function to extract the components. If raw data is input, the correlation matrix is automatically calculated by principal() function.
+
+```{r}
+gsdpa <- principal(GSD, nfactors = 4, rotate = "none")
+gsdpa
+```
+
+-Rotate the components
+
+```{r}
+gsdpa1 <- principal(GSD, nfactors = 4, rotate = "varimax")
+gsdpa1
+```
+
+-Compute component scores
+
+```{r}
+gsdpa2 <- principal(GSD, nfactors = 4, rotate = "varimax", scores = TRUE)
+head(gsdpa2$weights)
+```
+
+-Graph an orthogonal solution using factor.plot()
+
+```{r}
+factor.plot(gsdpa2)
+```
+
+-Interpret the results
+
+Four principal components extracted from the raw data determining glass type on 9 variables are sufficient to build the model. All four principal components accounts for 79 percent (25% for pc 1, 23% for pc2, 16% for pc3 and 15% for pc4) of the variance in the 9 variables. From the factor analysis table, CA, RI and K load on the first component, Mg, Al and Ba load on the second component, Na, K and Fe on the third component and Si and Na on the fourth component.
+
+-------------------------------------------------------------------------------------------------------------------
+
+Problem 3: Perform factor analysis on Herman74.cor, which is a data structure available in the base installation (A correlation matrix of 24 psychological tests given to 145 seventh and eight-grade children in a Chicago suburb by Holzinger and Swineford).
+
+-Input the correlation matrix to fa.parallel() function to determine the number of components to extract
+
+```{r}
+HAR <- fa.parallel(Harman74.cor$cov, fa = "both", n.obs = 145)
+```
+
+-Input the correlation matrix to fa() function to extract the components. If raw data is input, the correlation matrix is automatically calculated by fa() function.
+
+```{r}
+fa(Harman74.cor$cov, nfactors = 4, rotate = "none", fm = "pa")
+```
+
+-Rotate the factors
+
+```{r}
+HAR1rot <- fa(Harman74.cor$cov, nfactors = 4, rotate = "varimax", fm = "pa", scores = TRUE)
+HAR1rot
+```
+
+-Compute factor scores
+
+```{r}
+head(HAR1rot$weights)
+```
+
+-Graph an orthogonal solution using factor.plot()
+
+```{r}
+factor.plot(HAR1rot)
+```
+
+-Graph an oblique solutions using fa.diagram()
+
+```{r}
+HAR2rot <- fa(Harman74.cor$cov, nfactors = 4, rotate = "promax", fm = "pa")
+fa.diagram(HAR2rot, simple = FALSE)
+```
+
+-Interpret the results
+
+After using factor analysis,on Harman74.cor, we were able to extract 4 factors that are significant enough to represent the entire data (48% of which PA1 = 32%, PA2=77%, PA3=0.5%, PA4=4%). We performed rotation and the proportion variance changes to PA1=15%, PA2=11%, PA3=12% ,PA4=9% having total variance still as 48%.
+
+-------------------------------------------------------------------------------------------------------------------
+
+Problem 4: Perform factor analysis on breast-cancer-wisconsin.xlsx, is a multivariate dataset that is used to predict whether a cancer is malignant or benign from biopsy details of 699 patients with 11 attributes. Create a new data frame by removing the variable “BN ”.
+
+```{r}
+BCW <- read_xlsx("~/Downloads/breast-cancer-wisconsin.xlsx")
+BCW1 <- subset(BCW, select = -c(ID,BN))
+BCW1
+```
+
+-Calculate the correlation matrix from the new data frame. Visualize the correlation matrix using pairs.panels function of the “psych” package. How would you interpret the result in terms of correlation among the variables?
+
+```{r}
+bcw1cor <- cor(BCW1, use="pairwise.complete.obs")
+bcw1cor
+pairs.panels(bcw1cor)
+```
+
+Interpretation of pairs.panels
+The pairs.panels() function shows the scatter plot of matrices with bivariate scatter plot below the diagonal; histograms on diagonal; and Pearson correlation above the diagram.
+The variables UOCS, and UOCSH are highly positively correlated (+0.95), whereas the pairs (CLASS, MI) and (BC, MI) are negatively correlated (-0.74).
+
+
+
+-Input the correlation matrix to fa.parallel() function to determine the number of components to extract
+
+```{r}
+bcw1pa <- fa.parallel(bcw1cor, fa = "both", n.obs = 699 )
+```
+
+-Input the correlation matrix to fa() function to extract the components. If raw data is input, the correlation matrix is automatically calculated by fa() function.
+
+```{r}
+fa(bcw1cor, nfactors = 1, rotate = "none", fm = "pa")
+```
+
+-Rotate the factors
+
+```{r}
+bcw1fa <- fa(bcw1cor, nfactors = 1, rotate = "varimax", fm = "pa", scores = TRUE)
+bcw1fa
+```
+
+-Compute factor scores
+
+```{r}
+head(bcw1fa$weights)
+```
+
+-Graph an orthogonal solution using factor.plot()
+
+```{r}
+factor.plot(bcw1fa)
+```
+
+-Graph an oblique solutions using fa.diagram()
+
+```{r}
+bcw2fa <- fa(bcw1cor, nfactors = 1, rotate = "promax", fm = "pa")
+fa.diagram(bcw2fa)
+```
+
+-Interpret the results
+
+A single principal component was obtained after doing parallel analysis, which constitutes 64% of the total variance of the dataset. The factors PA1 has 5.77 as SS loadings , and the rotation of the factors doesn't affect the values of SS loadings. From factor analysis, we understand that all the factors are above 0.5 loads. From fa.diagram() function we can see the UOCS, UOCSH, and CLASS
+have 90% variance each, BC, NN, SECS, MA have 80% variance each, whereas the CT, MI has 70% and 50% variance in PA1.
+
+-------------------------------------------------------------------------------------------------------------------
+
+Problem 5. Perform multidimensional scaling on Vertebral Column Data.xlsx
+
+```{r}
+VCD <- read_xlsx("~/Downloads/Vertebral Column Data.xlsx")
+VCD1 <- subset(VCD, select = -c(Class))
+VCD
+VCD1
+```
+
+-Input the raw data matrix to fa.parallel() function to determine the number of components to extract
+
+```{r}
+vcdpc <- fa.parallel(VCD1, fa = "both", n.obs = 310)
+fa(VCD1,nfactors = 3, rotate = "none")
+```
+
+-Input the raw data matrix to cmdscale() function to perform multidimensional scaling. cmdscale() function which is available in the base installation performs a classical multidimensional scaling.
+
+```{r}
+vcd_distance <- dist(VCD1)
+distance <- cmdscale(vcd_distance, k=6)
+distance
+```
+
+-Graph an orthogonal solution using factor.plot()
+
+```{r}
+graph <- fa(VCD1,nfactors = 3, rotate = "varimax")
+graph
+factor.plot(graph)
+```
+
+-Interpret the results
+
+After orthogonal rotation using varimax, proportion variance of the 3 factors were 0.4, 0.21 and 0.12. Using factor plot we are plotting the eigen values of the column with respect to factors. After deriving orthogonal solution there is no overlapping of variances between the factors. Moreover factor.plot provides much better analysis than that of cmdscale.
+
+
+
+
+

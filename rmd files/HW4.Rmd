@@ -1,0 +1,306 @@
+---
+title: "HW4"
+author: "Jiaqi Wang, Pratik Mante"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Q1.Personal Loan Acceptance, k-NN
+
+a.Consider the following customer: Age=40, Experience=10, Income=84, Family=2,
+CCAvg=2, Education2=1, Education3=0, Mortgage=O, Securities Account=O, CD
+Account=O, Online=1 and Credit.card = 1. Perform a k-NN classification with all
+predictors except ID and ZIP code using k = 1. Remember to transform categorical
+predictors with more than two categories into dummy variables first. Specify the
+success class as 1 (loan acceptance), and use the default cutoff value of 0.5. How
+would this customer be classified?
+```{r }
+library(caret)
+library(xlsx)
+library(FNN)
+UniversalBank <- read.xlsx("C:/Homework/IE7275/HW4/UniversalBank.xlsx",sheetName = "Data")
+UniversalBank$Education <- as.factor(UniversalBank$Education)
+UniversalBank[,c("Education1","Education2","Education3")] <- model.matrix(~ Education - 1, data=UniversalBank)
+UniversalBank <- UniversalBank[, c(2,3,4,6,7,15,16,17,9,11,12,13,14,10)]
+UniversalBank[, 14] <- as.factor(UniversalBank[, 14])
+set.seed(101)
+train.index <- sample(row.names(UniversalBank), 0.6*dim(UniversalBank)[1])
+valid.index <- setdiff(row.names(UniversalBank), train.index)
+train.norm.df <- train.df
+valid.norm.df <- valid.df
+bank.norm.df <- bank.df
+new.df <- data.frame(Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education1 = 0, Education2 = 1, Education3 = 0, Mortgage = 0, Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1)
+new.norm.df <- new.df
+norm.values <- preProcess(train.df[, -14], method=c("center", "scale"))
+train.norm.df[, -14] <- predict(norm.values, train.df[, -14])
+valid.norm.df[, -14] <- predict(norm.values, valid.df[, -14])
+new.norm.df <- predict(norm.values, new.df)
+library(FNN)
+nn <- knn(train = train.norm.df[, -14], test = new.norm.df, cl = train.norm.df[, 14], k = 1)
+as.data.frame(nn)
+row.names(train.df)[attr(nn, "nn.index")]
+```
+Thus, classified as 0.
+
+b.What is a choice of k that balances between overfitting and ignoring the predictor
+information?
+```{r }
+library(caret)
+accuracy.df <- data.frame(k = seq(1, 20, 1), accuracy = rep(0, 20))
+for(i in 1:20) {
+  knn.pred <- knn(train.norm.df[, -14], valid.norm.df[, -14],
+                  cl = train.norm.df[, 14], k = i)
+  accuracy.df[i, 2] <- confusionMatrix(knn.pred, valid.norm.df[, 14])$overall[1]
+}
+accuracy.df
+plot(accuracy.df, type = "b")
+```
+
+k=5 may balance the overfitting and the ignoring
+
+c.Show the classification matrix for the validation data that results from using the best
+k.
+```{r }
+knnbest <- knn(train.norm.df[, -14], valid.norm.df[, -14], cl = train.norm.df[, 14], k = 5)
+table(valid.norm.df[,14], knnbest)
+```
+
+d.Consider the following customer: Age=40, Experience=10, Income=84, Family=2, CCAvg=2, Education 1=0, Education 2=1, Education 3=0, Mortgage=0, Securities Account=0, CD Account=0, Online=1 and Credit Card=1. Classify the customer using the best k.
+```{r }
+nnbest <- knn(train.norm.df[, -14], new.norm.df, cl = train.norm.df[, 14], k = 5)
+as.data.frame(nnbest)
+```
+
+e.Repartition the data, this time into training, validation, and test sets (50% : 30% : 20%). Apply the k-NN method with the k chosen above. Compare the classification matrix of the test set with that of the training and validation sets. Comment on the differences and their reason.
+```{r }
+set.seed(101)
+train.index <- sample(row.names(bank.df), 0.5*dim(bank.df)[1])
+valid.index <- sample(setdiff(row.names(bank.df), train.index), 0.3*dim(bank.df)[1])
+test.index <- setdiff(row.names(bank.df), union(train.index, valid.index))
+train.df <- bank.df[train.index, ]
+valid.df <- bank.df[valid.index, ]
+test.df <- bank.df[test.index, ]
+train.norm.df <- train.df
+valid.norm.df <- valid.df
+test.norm.df <- test.df
+bank.norm.df <- bank.df
+norm.values <- preProcess(train.df[, -14], method=c("center", "scale"))
+train.norm.df[, -14] <- predict(norm.values, train.df[, -14])
+valid.norm.df[, -14] <- predict(norm.values, valid.df[, -14])
+test.norm.df[, -14] <- predict(norm.values, test.df[, -14])
+bank.norm.df[, -14] <- predict(norm.values, bank.df[, -14])
+knntrain <- knn(train.norm.df[, -14], train.norm.df[, -14], cl = train.norm.df[, 14], k = 5)
+table(train.norm.df[,14], knntrain)
+knnvalid <- knn(train.norm.df[, -14], valid.norm.df[, -14], cl = train.norm.df[, 14], k = 5)
+table(valid.norm.df[,14], knnvalid)
+knntest <- knn(train.norm.df[, -14], test.norm.df[, -14], cl = train.norm.df[, 14], k = 5)
+table(test.norm.df[,14], knntest)
+```
+
+The error rate of the training set is lower but the difference is acceptable.
+
+Q2.Predicting Housing Median Prices k-NN
+
+a.Perform a k-NN prediction with all 13 predictors (ignore the CAT.MEDV column), trying values of k from 1 to 5. Make sure to normalize the data (click "normalize input data"). What is the best k chosen? What does it mean?
+```{r }
+housing.df <- read.xlsx("C:/Homework/IE7275/HW4/BostonHousing.xlsx",sheetName="Data")
+set.seed(201)
+train.index <- sample(row.names(housing.df), 0.6*dim(housing.df)[1])
+valid.index <- setdiff(row.names(housing.df), train.index)
+train.df <- housing.df[train.index, ]
+valid.df <- housing.df[valid.index, ]
+train.norm.df <- train.df
+valid.norm.df <- valid.df
+housing.norm.df <- housing.df
+norm.values <- preProcess(train.df[, c(-13,-14)], method=c("center", "scale"))
+train.norm.df[, c(-13,-14)] <- predict(norm.values, train.df[, c(-13,-14)])
+valid.norm.df[, c(-13,-14)] <- predict(norm.values, valid.df[, c(-13,-14)])
+housing.norm.df[, c(-13,-14)] <- predict(norm.values, housing.df[, c(-13,-14)])
+RMSE.df <- data.frame(k = seq(1, 20, 1), RMSE = rep(0, 20))
+for(i in 1:20) {
+  knn.pred <- knn.reg(train.norm.df[, c(-13,-14)], valid.norm.df[, c(-13,-14)],
+                  y = train.norm.df[, 13], k = i)
+  RMSE.df[i, 2] <- sqrt(sum((valid.norm.df[, 13] - as.array(knn.pred$pred))^2)/nrow(as.array(knn.pred$pred)))
+}
+RMSE.df
+plot(RMSE.df, type = "b")
+for(i in 1:20) {
+  knn.pred <- class::knn(train.norm.df[, c(-13,-14)], valid.norm.df[, c(-13,-14)],
+                         cl = train.norm.df[, 13], k = i)
+  RMSE.df[i, 2] <- sqrt(sum((valid.norm.df[, 13] - as.numeric(levels(knn.pred))[knn.pred])^2)/nrow(valid.norm.df))
+}
+RMSE.df
+plot(RMSE.df, type = "b")
+```
+
+b.Predict the MEDV for a tract with the following information, using the best k:
+```{r }
+new.df <- data.frame(CRIM = 0.2, ZN = 0, INDUS = 7, CHAS = 0, NOX = 0.538, RM = 6, AGE = 62, DIS = 4.7, RAD = 4, TAX = 307, PTRATIO = 21, LSTAT = 10)
+new.norm.df <- new.df
+new.norm.df <- predict(norm.values, new.df)
+knnbest <- knn.reg(train = train.norm.df[, c(-13,-14)], test = new.norm.df, y = train.norm.df[, 13], k = 3)
+knnbest
+```
+
+c.Why is the error of the training data zero?
+
+
+Since the test sample is in the training dataset, it'll choose itself as the closest and never make mistake. For this reason, the training error will be zero when K = 1, irrespective of the dataset
+
+
+d.Why is the validation data error overly optimistic compared to the error rate when applying this k-NN predictor to new data?
+
+The model performs best on the validation set. So the validation data error is better compared to new data.
+
+e.If the purpose is to predict MEDV for several thousands of new tracts, what would be the disadvantage of using k-NN prediction? List the operations that the algorithm goes through in order to produce each prediction.
+
+It will cost much more time.
+
+1.Compute the distances of the new record from each record in the entire training set.
+2.Find k numbers of nearest neighbors(smallest distances).
+3.Take the weighted average response value of all the neighbors as the prediction value.
+
+Q3. Automobile Accidents, Naïve Bayes
+
+```{r}
+library(readxl)
+Accidents <- read_excel("C:/Homework/IE7275/HW4/Accidents.xlsx", sheet = "Data", col_names = TRUE)
+Accidents$INJURY <- ifelse(Accidents$MAX_SEV_IR == 0, 0, 1)
+Accidents$INJURY <- factor(Accidents$INJURY, levels = c(0, 1), labels = c("No", "Yes"))
+```
+
+a. Using the information in this dataset, if an accident has just been reported and no further information is available, what should the prediction be? (INJURY = Yes or No?) Why?
+```{r}
+table(Accidents$INJURY)
+```
+
+Yes, according to the naive rule, the result is YES.
+
+b. Select the first 12 records in the dataset and look only at the response (INJURY) and the two predictors WEATHER_R and TRAF_CON_R.
+
+```{r}
+subset12 <- Accidents[1:12, c(16,19,25)]
+subset12$TRAF_CON_R <- factor(subset$TRAF_CON_R)
+subset12$WEATHER_R <- factor(subset$WEATHER_R)
+subset12$INJURY <- factor(subset$INJURY)
+```
+
+i. Using Excel tools create a pivot table that examines INJURY as a function of the 2 predictors for these 12 records. Use all 3 variables in the pivot table as rows/columns, and use counts for the cells.
+
+```{r}
+table(subset$WEATHER_R, subset$TRAF_CON_R, subset$INJURY, dnn = c("WEATHER_R","TRAF_CON_R", "INJURY"))
+```
+
+ii. Compute the exact Bayes conditional probabilities of an injury (INJURY =Yes) given the six possible combinations of the predictors.
+
+P(INJURY=Yes|WEATHER_R=1, TRAF_CON_R=0)=0.667
+P(INJURY=Yes|WEATHER_R=1, TRAF_CON_R=1)=0
+P(INJURY=Yes|WEATHER_R=1, TRAF_CON_R=2)=0
+P(INJURY=Yes|WEATHER_R=2, TRAF_CON_R=0)=0.167
+P(INJURY=Yes|WEATHER_R=2, TRAF_CON_R=1)=0
+P(INJURY=Yes|WEATHER_R=2, TRAF_CON_R=2)=0
+
+iii. Classify the 12 accidents using these probabilities and a cutoff of 0.5.
+
+Because cutoff is 0.5, only given WEATHER_R = 1 and TRAF_CON_R = 0, INJURY would be Yes.
+
+```{r}
+subset$predicted <- ifelse(subset$TRAF_CON_R == 0 & subset$WEATHER_R == 1, "Yes", "No")
+subset
+```
+
+iv. Compute manually the naive Bayes conditional probability of an injury given WEATHER_R = 1 and TRAF_CON_R = 1.
+
+P(INJURY=Yes|WEATHER_R = 1,TRAF_CON_R=1)=0 /0+1/18 = 0
+
+v. Run a naive Bayes classifier on the 12 records and 2 predictors. Obtain probabilities and classifications for all 12 records. Compare this to the exact Bayes classification. Are the resulting classifications equivalent? Is the ranking (= ordering) of observations equivalent?
+
+```{r}
+library(e1071)
+subsetnaive <- naiveBayes(INJURY ~ TRAF_CON_R + WEATHER_R, subset)
+subsetnaive
+pred.prob <- predict(subsetnaive, newdata = subset, type = "raw")
+pred.prob
+pred.class <- c("Yes", "No", "No", "No", "Yes", "No", "No", "Yes", "No", "No", "No", "No")
+df <- data.frame(actual = subset$INJURY, predicted = pred.class, pred.prob)
+df
+```
+
+Both are equivalent.
+
+c. Let us now return to the entire dataset. Partition the data into training/validation sets.
+
+```{r}
+set.seed(101)
+train.index <- sample(nrow(Accidents), 0.6*nrow(Accidents))
+train.df <- Accidents[train.index, ]
+valid.df <- Accidents[-train.index, ]
+```
+
+i. Assuming that no information or initial reports about the accident itself are available at the time of prediction (only location characteristics, weather conditions, etc.), which predictors can we include in the analysis? (Use the
+Data_Codes sheet.)
+
+```{r}
+data.df <- Accidents[, -24]
+data.df$HOUR_I_R <- factor(data.df$HOUR_I_R)
+data.df$ALCHL_I <- factor(data.df$ALCHL_I)
+data.df$ALIGN_I <- factor(data.df$ALIGN_I)
+data.df$STRATUM_R <- factor(data.df$STRATUM_R)
+data.df$WRK_ZONE <- factor(data.df$WRK_ZONE)
+data.df$WKDY_I_R <- factor(data.df$WKDY_I_R)
+data.df$INT_HWY <- factor(data.df$INT_HWY)
+data.df$LGTCON_I_R <- factor(data.df$LGTCON_I_R)
+data.df$MANCOL_I_R <- factor(data.df$MANCOL_I_R)
+data.df$PED_ACC_R <- factor(data.df$PED_ACC_R)
+data.df$RELJCT_I_R <- factor(data.df$RELJCT_I_R)
+data.df$REL_RWY_R <- factor(data.df$REL_RWY_R)
+data.df$PROFIL_I_R <- factor(data.df$PROFIL_I_R)
+data.df$SPD_LIM <- factor(data.df$SPD_LIM)
+data.df$SUR_COND <- factor(data.df$SUR_COND)
+data.df$TRAF_CON_R <- factor(data.df$TRAF_CON_R)
+data.df$TRAF_WAY <- factor(data.df$TRAF_WAY)
+data.df$VEH_INVL <- factor(data.df$VEH_INVL)
+data.df$WEATHER_R <- factor(data.df$WEATHER_R)
+data.df$INJURY_CRASH <- factor(data.df$INJURY_CRASH)
+data.df$NO_INJ_I <- factor(data.df$NO_INJ_I)
+data.df$PRPTYDMG_CRASH <- factor(data.df$PRPTYDMG_CRASH)
+data.df$FATALITIES <- factor(data.df$FATALITIES)
+data.df$INJURY <- factor(data.df$INJURY)
+train.df <- data.df[train.index, ]
+valid.df <- data.df[-train.index, ]
+```
+
+ii. Run a naive Bayes classifier on the complete training set with the relevant predictors (and INJURY as the response). Note that all predictors are categorical. Show the classification matrix.
+
+```{r}
+library(caret)
+trainnaive <- naiveBayes(INJURY ~ ., train.df)
+trainnaive
+pred.prob <- predict(train.nb, newdata = train.df, type = "raw")
+pred.class <- predict(train.nb, newdata = train.df)
+confusionMatrix(pred.class, train.df$INJURY)
+```
+
+iii. What is the overall error for the validation set?
+
+```{r}
+pred.prob <- predict(train.nb, newdata = valid.df, type = "raw")
+pred.class <- predict(train.nb, newdata = valid.df)
+confusionMatrix(pred.class, valid.df$INJURY)
+```
+
+Thus the error rate is 0.
+
+iv. What is the percent improvement relative to the naive rule (using the validation set)?
+
+The training set and validation set have the error rate of 0.
+
+v. Examine the conditional probabilities output. Why do we get a probability of zero for P(INJURY =No | SPD_LIM = 5)?
+
+```{r}
+table(valid.df$INJURY, valid.df$SPD_LIM, dnn = c("INJURY", "SPD_LIM"))
+```
+
+Because only one case satisfy that case.

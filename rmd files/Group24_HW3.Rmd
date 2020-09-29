@@ -1,0 +1,393 @@
+---
+title: "Group 24 HW3 "
+author: "Pratik Mante and Jiaqi Wang"
+date: "2/27/2020"
+output: pdf_document
+---
+
+```{r}
+
+```
+
+Problem 1: Gradient Descent Algorithm for Multiple Linear Regression
+The file concrete.csv includes 1,030 types of concrete with numerical features indicating characteristics of the concrete. The variable “strength” is treated as the response variable.
+
+a. Standardize all variables (including the response variable “strength”). Split the data set into a training set (60%) and a validation set (40%).
+
+```{r}
+#Standardize Data
+concrete_df<-read.csv('~/Downloads/concrete.csv')
+scaled_df<-concrete_df
+scaled_df$cement <- scale(concrete_df$cement)
+scaled_df$slag <- scale(concrete_df$slag)
+scaled_df$ash <- scale(concrete_df$ash)
+scaled_df$water <- scale(concrete_df$water)
+scaled_df$superplastic <- scale(concrete_df$superplastic)
+scaled_df$coarseagg <- scale(concrete_df$coarseagg)
+scaled_df$fineagg <- scale(concrete_df$fineagg)
+scaled_df$age <- scale(concrete_df$age)
+#Split dataset into training set(60%) and validation set(40%)
+library(rsample)
+library(tidyverse)
+library(Metrics)
+library(forecast)
+data_split <- initial_split(scaled_df,prop = 0.60)
+data_train <- training(data_split)
+data_test <- testing(data_split)
+```
+
+b. Implement the gradient descent algorithm in R with the ordinary least square cost function.
+
+```{r}
+#Gradient Descent Algorithm Imlementation
+
+Jcost <- function(X, y, b){
+  m <- length(y)
+  return((t(X%*%b-y))%*%(X%*%b-y)/(2*m))
+}
+data_train$new<-1
+data_train<-data_train[,c(10,c(1:9))]
+X <- as.matrix(data_train[c(1:9)])
+Y <- as.matrix(data_train[,10])
+Y <- scale(Y)
+
+J_history <- 0
+
+xfunc <- function(alpha,niter)
+{
+  J_history[1:niter] = 0
+  b0 <- as.matrix(c(0,0,0,0,0,0,0,0,0))
+  brun <- b0
+  m = length(Y)
+
+  for (iter in 1:niter){
+    brun = b0 + alpha*t(t(Y-X%*%b0)%*%X)/m
+    J_history[iter] <- Jcost(X,Y,brun)
+    #  print(J_history[iter])
+    b0 = brun
+  }
+
+  plot(J_history, col = "blue", xlab = "No. of Iteration", ylab = "Jcost",
+      main = "Least square cost function vs. iteration step")
+
+return (b0)
+}
+
+#compare with normal equations
+
+b1 <- solve(t(X)%*%X)%*%(t(X)%*%Y)
+```
+
+c. Fit the multiple linear regression model using the gradient descent algorithm and the training set. Try out different learning rates: 𝛼𝛼 = 0.01,0.1,0.3,0.5 and compare the speed of convergence by plotting the cost function. Determine the number of iterations needed for each 𝛼𝛼 value.
+
+```{r}
+#Alpha = 0.01
+alpha <- 0.01
+b <- xfunc(alpha,niter = 350)
+
+#Alpha = 0.1
+alpha <- 0.1
+b <- xfunc(alpha,niter = 150)
+
+#Alpha = 0.3
+alpha <- 0.3
+b <- xfunc(alpha,niter = 50)
+
+#Alpha = 0.5
+alpha <- 0.5
+b <- xfunc(alpha,niter=30)
+```
+
+d. Apply the fitted regression model to the validation set and evaluate the model performance (ME, RMSE, MAE, MPE, MPAE). Calculate the correlation between the predicted strength and the actual strength. Create a lift chart to show model performance.
+
+```{r}
+data_test$new <- 1
+data_test <- data_test[,c(10,c(1:9))]
+X_test <- as.matrix(data_test[c(1:9)])
+Y_test <- as.matrix(data_test$strength)
+Y_test <- scale(Y_test)
+predted<-X_test %*% b
+residual <- Y_test - predted
+mae <- mae(Y_test,predted)
+mape <- mape(Y_test,predted)
+rmse <- rmse(Y_test,predted)
+cor <- cor(Y_test,predted)
+data.frame("MAE" = mae, "RMSE" = rmse, "MAPE" = mape, "COR" = cor)
+library(lift)
+plotLift(predted, Y_test)
+```
+
+#####################################################################################################################################################
+
+Problem 2: Multiple Linear Regression Model for Concrete Slump Test Data
+
+a. Read the included research article “Modeling Slump Flow Concrete”. It is sufficient to consider “Slump Flow” as the response variable in this problem just as in the included article.
+
+b. Create a scatterplot matrix of “Concrete Slump Test Data” and select an initial set of predictor variables.
+
+```{r}
+library(readxl)
+library(data.table)
+library(bootstrap)
+library(MASS)
+cstd<-read_excel('~/Downloads/Concrete Slump Test Data.xlsx')
+head(cstd)
+cstd<-cstd[,c(2:11)]
+head(cstd)
+library(ggplot2)
+cor(cstd)
+library(car)
+scatterplotMatrix(cstd,main='Scatter plot matrix')
+```
+
+c. Build a few potential regression models using “Concrete Slump Test Data”
+
+```{r}
+#normal linear regg
+head(cstd)
+selected.var1<-c(1:10)
+set.seed(1)
+
+#spliting data
+train.index1<-sample(c(1:103),as.integer(103*0.6))
+train.df1<-cstd[train.index1,selected.var1]
+vaild.df1<-cstd[-train.index1,selected.var1]
+
+#Regression Models:
+
+#using linear regress
+cstd.lm<-lm(train.df1$`Slump Flow`~.,data=train.df1)
+cstd.lm
+cstdpred<-predict(cstd.lm,vaild.df1)
+cstdpred
+library('forecast')
+accuracy(cstdpred,vaild.df1$`Slump Flow`)
+
+#model ploynomial regresssion
+cstd.lm2<-lm(train.df1$`Slump Flow`~(train.df1$Cement+train.df1$Slag+train.df1$`Fly Ash`+train.df1$Water+train.df1$SP+train.df1$`Coarse Aggregate`+train.df1$`Fine Aggregate`+train.df1$Slump+train.df1$`28-day Compressive Strength`)+I((train.df1$Cement^2+train.df1$Slag^2+train.df1$`Fly Ash`^2+train.df1$Water^2+train.df1$SP^2+train.df1$`Coarse Aggregate`^2+train.df1$`Fine Aggregate`^2+train.df1$Slump^2+train.df1$`28-day Compressive Strength`^2)),data=train.df1)
+cstd.lm2
+cstdpred2<-predict(cstd.lm2,vaild.df1)
+cstdpred2
+accuracy(cstdpred2,vaild.df1$`Slump Flow`)
+
+#model multiple regression with interactions 
+cstd.lm3<-lm(train.df1$`Slump Flow`~train.df1$Cement+train.df1$Slag+train.df1$`Fly Ash`+train.df1$Water+train.df1$SP+train.df1$`Coarse Aggregate`+train.df1$`Fine Aggregate`+train.df1$Slump+train.df1$`28-day Compressive Strength`+train.df1$Slump:train.df1$`28-day Compressive Strength`,data=train.df1)
+cstd.lm3
+cstdpred3<-predict(cstd.lm3,vaild.df1)
+cstdpred3
+```
+
+d. Perform regression diagnostics using both typical approach and enhanced approach
+
+```{r}
+#comparing accuracy
+accuracy(cstdpred3,vaild.df1$`Slump Flow`)
+accuracy(cstdpred,vaild.df1$`Slump Flow`)
+accuracy(cstdpred2,vaild.df1$`Slump Flow`)
+accuracy(cstdpred3,vaild.df1$`Slump Flow`)
+
+#screen patition
+par(mfrow=c(2,2))
+plot(cstd.lm)
+plot(cstd.lm2)
+
+#using enhanced model
+qqPlot(cstd.lm,labels=row.names(cstd.lm),id.method='identify',stimulate=T,main='Q-Qplot')
+
+#model overestimates the value of var 29,14
+cstd[c(14,29),]
+residualPlot(cstd.lm,main='residual plot')
+crPlots(cstd.lm)
+ncvTest(cstd.lm)
+spreadLevelPlot(cstd.lm)
+par(mfrow=c(1,1))
+library(gvlma)
+gvlma(cstd.lm)
+#we have to delete outliers
+```
+
+e. Identify unusual observations and take corrective measures
+
+```{r}
+library(olsrr)
+out<-ols_plot_dffits(cstd.lm, print_plot = TRUE)
+out$data
+outlierTest<-c(14,17,29,54,59)
+
+#making new dataset without outliers
+
+#testing model 1 without outliers
+train.dfo1<-train.df1[-c(14,17,29,54,58,59),]
+cstd.lmo1<-lm(train.dfo1$`Slump Flow`~.,data=train.dfo1)
+cstd.lmo1
+cstdpredo1<-predict(cstd.lmo1,vaild.df1)
+cstdpredo1
+gvlma(cstd.lmo1)
+
+#testing model 2 without outliers
+train.dfo2<-train.df1[-c(14,17,29,54,58,59),]
+cstd.lmo2<-lm(train.dfo2$`Slump Flow`~(train.dfo2$Cement+train.dfo2$Slag+train.dfo2$`Fly Ash`+train.dfo2$Water+train.dfo2$SP+train.dfo2$`Coarse Aggregate`+train.dfo2$`Fine Aggregate`+train.dfo2$Slump+train.dfo2$`28-day Compressive Strength`)+I((train.dfo2$Cement^2+train.dfo2$Slag^2+train.dfo2$`Fly Ash`^2+train.dfo2$Water^2+train.dfo2$SP^2+train.dfo2$`Coarse Aggregate`^2+train.dfo2$`Fine Aggregate`^2+train.dfo2$Slump^2+train.dfo2$`28-day Compressive Strength`^2)),data=train.dfo2)
+cstd.lmo2
+qqPlot(cstd.lmo2,labels=row.names(cstd.lm),id.method='identify',stimulate=T,main='Q-Qplot')
+cstdpredo2<-predict(cstd.lmo2,vaild.df1)
+
+#additional data outliers identified as 5,6
+
+#removinf them
+train.dfo2n<-train.dfo2[-c(5,6),]
+cstd.lmo2n<-lm(train.dfo2n$`Slump Flow`~(train.dfo2n$Cement+train.dfo2n$Slag+train.dfo2n$`Fly Ash`+train.dfo2n$Water+train.dfo2n$SP+train.dfo2n$`Coarse Aggregate`+train.dfo2n$`Fine Aggregate`+train.dfo2n$Slump+train.dfo2n$`28-day Compressive Strength`)+I((train.dfo2n$Cement^2+train.dfo2n$Slag^2+train.dfo2n$`Fly Ash`^2+train.dfo2n$Water^2+train.dfo2n$SP^2+train.dfo2n$`Coarse Aggregate`^2+train.dfo2n$`Fine Aggregate`^2+train.dfo2n$Slump^2+train.dfo2n$`28-day Compressive Strength`^2)),data=train.dfo2n)
+cstd.lmo2n
+qqPlot(cstd.lmo2n,labels=row.names(cstd.lm),id.method='identify',stimulate=T,main='Q-Qplot')
+cstdpredo2n<-predict(cstd.lmo2n,vaild.df1)
+gvlma(cstd.lmo2n)
+
+#remove more outliers
+train.dfo2n1<-train.dfo2n[-c(43,45),]
+cstd.lmo2n1<-lm(train.dfo2n1$`Slump Flow`~(train.dfo2n1$Cement+train.dfo2n1$Slag+train.dfo2n1$`Fly Ash`+train.dfo2n1$Water+train.dfo2n1$SP+train.dfo2n1$`Coarse Aggregate`+train.dfo2n1$`Fine Aggregate`+train.dfo2n1$Slump+train.dfo2n1$`28-day Compressive Strength`)+I((train.dfo2n1$Cement^2+train.dfo2n1$Slag^2+train.dfo2n1$`Fly Ash`^2+train.dfo2n1$Water^2+train.dfo2n1$SP^2+train.dfo2n1$`Coarse Aggregate`^2+train.dfo2n1$`Fine Aggregate`^2+train.dfo2n1$Slump^2+train.dfo2n1$`28-day Compressive Strength`^2)),data=train.dfo2n1)
+cstd.lmo2n1
+qqPlot(cstd.lmo2n1,labels=row.names(cstd.lm),id.method='identify',stimulate=T,main='Q-Qplot')
+cstdpredo2n<-predict(cstd.lmo2n1,vaild.df1)
+gvlma(cstd.lmo2n1)
+
+#all assumptions acceptable
+
+#model acceptable
+outlierTest(cstd.lmo2n1)
+
+#plot
+AIC(cstd.lm,cstd.lm2,cstd.lmo2n1)
+
+#aic suggest that last used model was the best
+
+#variav selection
+library(MASS)
+stepAIC(cstd.lmo2n1,direction = 'backward')
+```
+
+f. Select the best regression model
+
+```{r}
+#perform regression using new predictors
+cstd.lmo2n1n<-lm(formula = train.dfo2n1$`Slump Flow` ~ train.dfo2n1$Cement + 
+                   train.dfo2n1$`Fly Ash` + train.dfo2n1$Water + train.dfo2n1$SP + 
+                   train.dfo2n1$Slump + train.dfo2n1$`28-day Compressive Strength` + 
+                   I((train.dfo2n1$Cement^2 + train.dfo2n1$Slag^2 + train.dfo2n1$`Fly Ash`^2 + 
+                        train.dfo2n1$Water^2 + train.dfo2n1$SP^2 + train.dfo2n1$`Coarse Aggregate`^2 + 
+                        train.dfo2n1$`Fine Aggregate`^2 + train.dfo2n1$Slump^2 + 
+                        train.dfo2n1$`28-day Compressive Strength`^2)), data = train.dfo2n1)
+cstd.lmo2n1n
+cstdpredo2n1n<-predict(cstd.lmo2n1n,vaild.df1)
+cstdpredo2n1n
+gvlma(cstd.lmo2n1n)
+
+#comparing two models
+AIC(cstd.lmo2n1n,cstd.lmo2n1)
+```
+
+g. Fine tune the selection of predictor variables
+
+```{r}
+#calculating rel weights
+relweights <-
+  function(fit,...){                         
+    R <- cor(fit$model)   
+    nvar <- ncol(R)          
+    rxx <- R[2:nvar, 2:nvar] 
+    rxy <- R[2:nvar, 1]      
+    svd <- eigen(rxx)        
+    evec <- svd$vectors                           
+    ev <- svd$values         
+    delta <- diag(sqrt(ev))  
+    lambda <- evec %*% delta %*% t(evec)        
+    lambdasq <- lambda ^ 2   
+    beta <- solve(lambda) %*% rxy           
+    rsquare <- colSums(beta ^ 2)                   
+    rawwgt <- lambdasq %*% beta ^ 2    
+    import <- (rawwgt / rsquare) * 100 
+    lbls <- names(fit$model[2:nvar])   
+    rownames(import) <- lbls
+    colnames(import) <- "Weights"
+    barplot(t(import),names.arg=lbls,
+            ylab="% of R-Square",
+            xlab="Predictor Variables",
+            main="Relative Importance of Predictor Variables", 
+            sub=paste("R-Square=", round(rsquare, digits=3)),
+            ...)  
+    return(import)
+  }
+relweights(cstd.lmo2n1n)
+```
+
+h. Interpret the prediction results
+Answer: From the prediction results it can be interpreted that of the total varinece of 98.1% , 63.47% is by Slump , 20.9% by Water. 
+
+#####################################################################################################################################################
+
+Problem 3: The file insurance.csv includes 1,338 examples of beneficiaries currently enrolled in the insurance plan, with features indicating characteristics of the patient as well as the total medical expenses charged to the plan for the calendar year.
+
+a. Prior to building a regression model, it is often helpful to check for normality. Although linear regression does not strictly require a normally distributed dependent variable, the model often fits better when this is true. Look at the summary statistics and draw the histogram of the dependent variable. Comment on the results.
+
+```{r}
+insurance <- read.csv("~/Downloads/insurance.csv")
+#removing region column
+insurance$region<-NULL
+hist(insurance$charges)
+
+#converting factors into numeric
+insu1<- insurance
+insu1$sex <- as.numeric(insu1$sex)
+insu1$smoker <- as.numeric(insu1$smoker)
+
+#finding corellation
+cor(insu1)
+head(insurance)
+```
+
+b. Create a correlation matrix and a scatterplot matrix for the four numeric variables in the insurance data frame. Do you notice any patterns in these plots in the scatterplot matrix?
+
+```{r}
+library(PerformanceAnalytics)
+library(GGally)
+
+#create correlation and scatterplot matrix for numeric variables
+ggpairs(insurance[c(1,3,4,6)], main="Insurance Scatterplot Matrix")
+
+#using performance analytics
+chart.Correlation(insurance[c(1,3,4,6)], histogram=TRUE, pch=1, main="Insurance Scatterplot Matrix")
+```
+
+it can be seen there is weak relation between age and bmi
+curvilinear relation between children and age
+weak relation between bmi and children
+moderate relation between age and charge
+weak relation between bmi v chrge and children v charges
+
+c. Build a regression model using the independent variables, then evaluate the model performance.
+
+```{r}
+ggcorr(insu1, name = "corr", label = TRUE)+theme(legend.position="none")
+#normal app
+ins.lm<-lm(charges~.,data = insurance)
+ins.lm
+```
+
+d. Perform regression diagnostics using both typical approach and enhanced approach for the regression model you build in part (c).
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
