@@ -1,0 +1,291 @@
+---
+title: "Group 24 HW5 "
+author: "Pratik Mante and Jiaqi Wang"
+date: "4/6/2020"
+output: pdf_document
+---
+
+Problem 1: 
+
+a. Run a regression tree (RT) with the output variable Price and input variables Age_08_04, KM, Fuel_Type, HP, Automatic, Doors, Quarterly_Tax, Mfg_Guarantee, Guarantee_Period, Airco, Automatic_Airco, CD Player, Powered_Windows, Sport_Model, and Tow_Bar.
+
+```{r}
+library(readxl)
+ToyotaCorolla <- read_excel("/Users/pratikmante/Downloads/ToyotaCorolla.xlsx", sheet = "data")
+library(fastDummies)
+ToyotaCorolla_New <- fastDummies::dummy_cols(ToyotaCorolla ,select_columns = "Fuel_Type")
+ToyotaCorolla_New <- ToyotaCorolla_New[,-8]
+ToyotaCorolla_New <- fastDummies::dummy_cols(ToyotaCorolla_New,select_columns = "Color")
+ToyotaCorolla_New <- ToyotaCorolla_New[,-10]
+set.seed(100)
+index <- sample(1:3, size = nrow(ToyotaCorolla_New),replace = T, prob = c(0.5,0.3,0.2))
+ToyotaCorolla_train <- ToyotaCorolla_New[index==1,] 
+ToyotaCorolla_validation <- ToyotaCorolla_New[index==2,] 
+ToyotaCorolla_test <- ToyotaCorolla_New[index==3,]
+library(rpart)
+RT1 <- rpart(Price ~ Age_08_04 + KM + Fuel_Type_Diesel + Fuel_Type_Petrol + Fuel_Type_CNG + HP + Automatic + Doors + Quarterly_Tax + Mfr_Guarantee + Guarantee_Period + Airco + Automatic_airco + CD_Player + Powered_Windows + Sport_Model + Tow_Bar, data = ToyotaCorolla_train, method = "anova", control = rpart.control(maxdepth = 3))
+printcp(RT1)
+```
+
+i. Which appear to be the three or four most important car specifications for predicting the car’s price?
+
+```{r}
+summary(RT1)
+library(rpart.plot)
+prp(RT1, type = 1, extra = 1, split.font = 1, varlen = -10)
+plotcp(RT1)
+```
+
+ii. Compare the prediction errors of the training, validation, and test sets by examining their RMS error and by plotting the three boxplots. What is happening with the training set predictions? How does the predictive performance of the test set compare to the other two? Why does this occur?
+
+Answer: It can be observed that RMSE value of training set is less than that of validation and test set. We get this result as model is trained on training set and from these results we can tell that there is issue of overfitting. It can also be observed that RMSE of test data is highest which means that it has least efficiency of prediction. This is due to not training the model on it and the new data.
+
+```{r}
+RT1_train_pred <- predict(RT1, ToyotaCorolla_train, type = "vector") 
+RMSE_train = function(x,y){ sqrt(mean((RT1_train_pred - ToyotaCorolla_train$Price)^2))}
+RMSE_train(RT1_train_pred, ToyotaCorolla_train$Price)
+
+RT1_valid_pred <- predict(RT1, ToyotaCorolla_validation, type = "vector") 
+RMSE_valid = function(x,y){ sqrt(mean((RT1_valid_pred - ToyotaCorolla_validation$Price)^2))}
+RMSE_valid(RT1_valid_pred, ToyotaCorolla_validation$Price)
+
+RT1_test_pred <- predict(RT1, ToyotaCorolla_test, type = "vector") 
+RMSE_test = function(x,y){ sqrt(mean((RT1_test_pred - ToyotaCorolla_test$Price)^2))}
+RMSE_test(RT1_test_pred, ToyotaCorolla_test$Price)
+
+par(mfrow=c(1,3)) 
+boxplot(RT1_train_pred-ToyotaCorolla_train$Price)
+boxplot(RT1_valid_pred-ToyotaCorolla_validation$Price) 
+boxplot(RT1_test_pred-ToyotaCorolla_test$Price)
+par(mfrow=c(1,1))
+```
+
+iii. If we used the full tree instead of the best pruned tree to score the validation set, how would this affect the predictive performance for the validation set? (Hint: Does the full tree use the validation data?)
+
+Answer: It can be observed that pruned tree has better predictive performance than that of full tree. Pruned tree has reduced validation error which is 1275.245.
+
+```{r}
+RT1.cv <- rpart(Price ~ Age_08_04 + KM + Fuel_Type_Diesel + Fuel_Type_Petrol + Fuel_Type_CNG + HP + Automatic + Doors + Quarterly_Tax + Mfr_Guarantee + Guarantee_Period + Airco + Automatic_airco + CD_Player + Powered_Windows + Sport_Model + Tow_Bar, data = ToyotaCorolla_train, method = "anova", cp = 0.00001, minsplit = 2, xval = 5)
+RT1_Pruned <- prune(RT1.cv,cp=RT1.cv$cptable[which.min(RT1.cv$cptable[,"xerror"])]) 
+prp(RT1_Pruned, type = 1, extra = 1, split.font = 1, varlen = -10)
+printcp(RT1_Pruned)
+pruned_valid <- predict(RT1_Pruned, ToyotaCorolla_validation, type = "vector")
+RMSE_pruned = function(x,y){ sqrt(mean((pruned_valid - ToyotaCorolla_validation$Price)^2))}
+RMSE_pruned(pruned_valid, ToyotaCorolla_validation$Price)
+```
+
+b. Let us see the effect of turning the price variable into a categorical variable. First, create a new variable that categorizes price into 20 bins of equal counts. Now repartition the data keeping Binned Price instead of Price. Run a classification tree (CT) with the same set of input variables as in the RT, and with Binned Price as the output variable.
+
+```{r}
+ToyotaCorolla_New$Binnedprice <- as.factor(as.numeric(cut(ToyotaCorolla_New$Price,20)))
+ToyotaCorolla_New <- ToyotaCorolla_New[,-3]
+set.seed(100)
+index <- sample(1:3, size = nrow(ToyotaCorolla_New), replace = T, prob = c(0.5,0.3,0.2))
+ToyotaCorolla_train2 <- ToyotaCorolla_New[index==1,] 
+ToyotaCorolla_validation2 <- ToyotaCorolla_New[index==2,] 
+ToyotaCorolla_test2 <- ToyotaCorolla_New[index==3,]
+```
+
+i. Compare the tree generated by the CT with the one generated by the RT. Are they different? (Look at structure, the top predictors, size of tree, etc.) Why?
+
+Answer: It is observed that classification tree has more branches than that of regression tree. Also, regression tree had 4 more important variables wheread classification tree has 2 important variables: Age_08_04 and KM.
+
+```{r}
+CT <- rpart(Binnedprice ~ Age_08_04 + KM + Fuel_Type_Diesel + Fuel_Type_CNG + Fuel_Type_Petrol + HP + Automatic + Doors + Quarterly_Tax +
+Mfr_Guarantee + Guarantee_Period + Airco + Automatic_airco + CD_Player + Powered_Windows + Sport_Model + Tow_Bar, data = ToyotaCorolla_train2, method = "class")
+printcp(CT)
+prp(CT, type = 1, extra = 1, split.font = 1, varlen = -10)
+summary(CT)
+plot(CT, margin = 0.07) 
+text(CT, cex = 0.8)
+plot(RT1, margin = 0.07)
+text(RT1, cex = 0.8)
+```
+
+ii. Predict the price, using the RT and the CT, of a used Toyota Corolla with the specifications listed in Table below.
+
+```{r}
+new_test <- data.frame(Age_08_04=77,KM=117000,Fuel_Type_CNG=0,Fuel_Type_Diesel=0,Fuel_Type_Petrol=1,HP=110,Automatic=0,Doors=5,Quarterly_Tax=100,Mfr_Guarantee=0,Guarantee_Period=3,Airco=1,Automatic_airco=0,CD_Player=0,Powered_Windows=0,Sport_Model=0,Tow_Bar=1)
+predict(RT1,new_test)
+predict(CT,new_test, type = "class")
+(max(ToyotaCorolla[which(ToyotaCorolla_New$Binnedprice == 3),3]) + min(ToyotaCorolla[which(ToyotaCorolla_New$Binnedprice == 3),3]))/2
+```
+
+iii. Compare the predictions in terms of the predictors that were used, the magnitude of the difference between the two predictions, and the advantages and disadvantages of the two methods.
+
+Answer: Predicted Values for regression tree: 7949.734
+        Predicted Values for classification tree: 7850
+        Magnitude Difference between two predictors: 7949.734 - 7850 = 99.734
+        Advantage of Regression tree: performs variable screening implicitly and it is easy to interpret
+        Advantage of Classification tree: consumes less time and less complex compared to regression tree
+        Disadvantage of Regression tree: high complexity and time consuming
+        Disadvantage of Classification tree: it is not easy to interpret
+        
+****************************************************************************************************************************************************************
+
+Problem 2: 
+
+a. Write the estimated equation that associates the financial condition of a bank with its two predictors in three formats:
+
+```{r}
+library(readxl)
+Bank <- read_excel("/Users/pratikmante/Downloads/Banks.xlsx")
+Bank$`Financial Condition` <- factor(Bank$`Financial Condition`, levels = c(1,0))
+logit.bank <- glm(`Financial Condition` ~ `TotExp/Assets` + `TotLns&Lses/Assets`, data = Bank, family = binomial(link= "logit"))
+summary(logit.bank)
+plot(logit.bank)
+```
+
+x1 = TotExp/Assets
+x2 = TotLns&Lses/Assets
+
+i. The logit as a function of the predictors
+Answer: log(p/(i-p)) = 14.188 + (-79.964)x1 + (-9.173)x2
+
+ii. The odds as a function of the predictors
+Answer: odds = e ^ (14.188 + (-79.964)x1 + (-9.173)x2)
+
+iii. The probability as a function of the predictors
+Answer: probability = 1/(1 + e ^ (14.188 + (-79.964)x1 + (-9.173)x2))
+
+b. Consider a new bank whose total loans and leases/assets ratio = 0.6 and totalexpenses/assets ratio = 0.11. From your logistic regression model, estimate the following four quantities for this bank: the logit, the odds, the probability of being financially weak, and the classification of the bank.
+
+```{r}
+test_bank <- data.frame("TotLns&Lses/Assets" = 0.6,"TotExp/Assets" = 0.11, check.names = FALSE)
+logit <- predict.glm(logit.bank, test_bank) 
+logit
+odds <- exp(logit)
+odds
+probability <- predict.glm(logit.bank, test_bank, type = "response") 
+probability
+glm.pred <- ifelse(probability>0.5, "1 - weak", "0 - strong") 
+glm.pred
+```
+
+c. The cutoff value of 0.5 is used in conjunction with the probability of being financially weak. Compute the threshold that should be used if we want to make a classification based on the odds of being financially weak, and the threshold for the corresponding logit.
+
+Answer: For cutoff value of 0.5, threshold for odds of being financially weak : 
+
+d. Interpret the estimated coefficient for the total loans & leases to total assets ratio (TotLns&Lses/Assets) in terms of the odds of being financially weak.
+
+Answer: From the very low value of estimated coefficent it can be interpreted that the ratio (TotLns&Lses/Assets) does not have signoficant effect as compared to other variables.
+
+```{r}
+coef_odds <- exp(coefficients(logit.bank)[3]) 
+coef_odds
+```
+
+e. When a bank that is in poor financial condition is misclassified as financially strong, the misclassification cost is much higher than when a financially strong bank is misclassified as weak. To minimize the expected cost of misclassification, should the cutoff value for classification (which is currently at 0.5) be increased or decreased?
+
+Answer: It can be observed that the rate of predicting "strong when actually it is weak", is high when the value of cutoff is higher than 0.5. But the rate of predicting "strong when actually it is weak" decreases with the decrease in cutoff value. The best cutoff value is 0.02.
+
+```{r}
+p <- ifelse(logit.bank$fitted.values>= 0.5, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.8, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.9, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.3, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.1, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.05, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.03, 1,0) 
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.02, 1,0)
+table(p, Bank$`Financial Condition`)
+p <- ifelse(logit.bank$fitted.values>= 0.01, 1,0) 
+table(p, Bank$`Financial Condition`)
+```
+
+****************************************************************************************************************************************************************
+
+Problem 3: 
+
+a. Create a scatterplot of Experience versus Training using color or symbol to differentiate programmers who complete the task from those who did not complete it. Which predictor(s) appear(s) potentially useful for classifying task completion?
+
+Answer: It can be observed from the graph that "experience" has more impact than "training" on task completion. It can be seen that with increase in "experience" task completion also increases.
+
+```{r}
+library(readxl)
+SA <- read_excel("/Users/pratikmante/Downloads/System Administrators.xlsx")
+plot(SA$Experience, SA$Training, col = ifelse(SA$`Completed task` == "Yes", "Red", "Blue"))
+```
+
+b. Run a logistic regression model with both predictors using the entire dataset as training data. Among those who complete the task, what is the percentage of programmers who are incorrectly classified as failing to complete the task?
+
+Answer: Percentage of misclassification: (5/15)*100 = 33.33%
+
+```{r}
+SA$`Completed task` <- ifelse(SA$`Completed task` == "Yes", "0", "1") 
+SA$`Completed task` <- as.numeric(SA$`Completed task`)
+logit_SA <- glm(`Completed task` ~ Experience + Training, data = SA, family = "binomial")
+summary(logit_SA)
+SA_pred <- predict(logit_SA, data = SA, type = "response") 
+prob <- ifelse(SA_pred > 0.5, "1", "0" )
+table(prob, SA$`Completed task`)
+```
+
+c. To decrease the percentage in part (b), should the cutoff probability be increased or decreased?
+
+Answer: Cutoff = 0.8; misclassification = (1/15)*100 = 6.67%
+        Cutoff = 0.2; misclassification = (6/15)*100 = 40%
+        From the above value we can say that the cutoff should be increased to decrease the percentage 
+
+```{r}
+prob <- ifelse(SA_pred > 0.9, "1", "0" ) 
+table(prob, SA$`Completed task`)
+prob <- ifelse(SA_pred > 0.4, "1", "0" ) 
+table(prob, SA$`Completed task`)
+```
+
+d. How much experience must be accumulated by a programmer with 4 years of training before his or her estimated probability of completing the task exceeds 50%?
+
+Answer: probability = 0.5
+        x2 = 4
+        a = 10.9813
+        b1 = -1.1269
+        b2 = -0.1805
+        
+        probability = 1 / (1 + e ^ (a + b1*x1 + b2*x2))
+        0.5 = 1 / (1 + e ^ (10.9813 + (-1.1269)*x1 +(-0.1805)*4))
+        x1 = approx(9 years)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
